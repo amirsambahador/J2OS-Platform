@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Process dedicated to diagram testing: deliberately kept separate from the other
+    bpmn-samples so those remain untouched. It has a single simple user task so both
+    getProcessDiagramByProcessInstanceId (highlighted) and getProcessDiagramByProcessDefinitionKey
+    (no highlighting, outline only) can be tested. The bpmndi:BPMNDiagram section at the
+    bottom of the file gives the on-screen coordinates of every element; without that
+    section, ProcessDiagramGenerator cannot render an image.
+-->
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:flowable="http://flowable.org/bpmn"
+                  xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/MODEL BPMN20.xsd"
+                  id="diagramSampleDefinitions" targetNamespace="http://j2os.org/jbpms">
+    <!-- The process id doubles as its deployment key: JFlow refers to this process by "diagramSample". -->
+    <bpmn:process id="diagramSample" name="DiagramSample" isExecutable="true">
+        <bpmn:startEvent id="start" name="Start">
+            <bpmn:outgoing>c1</bpmn:outgoing>
+        </bpmn:startEvent>
+        <bpmn:sequenceFlow id="c1" sourceRef="start" targetRef="review"/>
+        <bpmn:userTask id="review" name="review" flowable:assignee="بازبین">
+            <bpmn:incoming>c1</bpmn:incoming>
+            <bpmn:outgoing>c2</bpmn:outgoing>
+        </bpmn:userTask>
+        <bpmn:sequenceFlow id="c2" sourceRef="review" targetRef="end"/>
+        <bpmn:endEvent id="end" name="End">
+            <bpmn:incoming>c2</bpmn:incoming>
+        </bpmn:endEvent>
+    </bpmn:process>
+
+    <bpmndi:BPMNDiagram id="BPMNDiagram_diagramSample">
+        <bpmndi:BPMNPlane id="BPMNPlane_diagramSample" bpmnElement="diagramSample">
+            <bpmndi:BPMNShape id="BPMNShape_start" bpmnElement="start">
+                <omgdc:Bounds x="100" y="100" width="36" height="36"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="BPMNShape_review" bpmnElement="review">
+                <omgdc:Bounds x="200" y="78" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="BPMNShape_end" bpmnElement="end">
+                <omgdc:Bounds x="360" y="100" width="36" height="36"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNEdge id="BPMNEdge_c1" bpmnElement="c1">
+                <omgdi:waypoint x="136" y="118"/>
+                <omgdi:waypoint x="200" y="118"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="BPMNEdge_c2" bpmnElement="c2">
+                <omgdi:waypoint x="300" y="118"/>
+                <omgdi:waypoint x="360" y="118"/>
+            </bpmndi:BPMNEdge>
+        </bpmndi:BPMNPlane>
+    </bpmndi:BPMNDiagram>
+</bpmn:definitions>

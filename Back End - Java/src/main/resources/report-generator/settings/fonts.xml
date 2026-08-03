@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fontFamilies xmlns="http://jasperreports.sourceforge.net/fonts"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/fonts http://jasperreports.sourceforge.net/xsd/fonts.xsd">
+
+    <!--
+        Vazirmatn: open-source Persian/Latin font (SIL Open Font License,
+        see fonts/Vazirmatn-OFL-LICENSE.txt), used to fix Persian text not
+        rendering at all in exported reports.
+
+        The two settings that actually matter for Persian:
+        - pdfEncoding = Identity-H: the default PDF encoding (Cp1252) has no
+          Persian glyphs at all, so without this, Persian characters are
+          silently dropped from the PDF regardless of which font is used.
+        - pdfEmbedded = true: embeds the actual glyph outlines in the PDF,
+          so the reader doesn't need this font installed to display it.
+
+        Any report - DynamicReportEngine or a .jrxml template - that sets
+        fontName="Vazirmatn" automatically gets correct AWT font metrics,
+        PDF export (Identity-H + embedded), and DOCX/XLSX export, because
+        JasperReports resolves the font by name through this registered
+        extension - no per-report pdfFontName/pdfEncoding overrides needed.
+    -->
+    <fontFamily name="Vazirmatn">
+        <normal>report-generator/fonts/Vazirmatn-Regular.ttf</normal>
+        <bold>report-generator/fonts/Vazirmatn-Bold.ttf</bold>
+        <italic>report-generator/fonts/Vazirmatn-Regular.ttf</italic>
+        <boldItalic>report-generator/fonts/Vazirmatn-Bold.ttf</boldItalic>
+        <pdfEncoding>Identity-H</pdfEncoding>
+        <pdfEmbedded>true</pdfEmbedded>
+        <exportFonts>
+            <export key="net.sf.jasperreports.html">'Vazirmatn', Tahoma, Arial, sans-serif</export>
+        </exportFonts>
+    </fontFamily>
+</fontFamilies>

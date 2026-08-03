@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sample process 2: purchase approval. Three simple approval steps, nothing else added. -->
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:flowable="http://flowable.org/bpmn"
+                  xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/MODEL BPMN20.xsd"
+                  id="purchaseApprovalDefinitions" targetNamespace="http://j2os.org/jbpms">
+    <!-- The process id doubles as its deployment key: JFlow refers to this process by "purchaseApproval". -->
+    <bpmn:process id="purchaseApproval" name="PurchaseApproval" isExecutable="true">
+        <bpmn:startEvent id="start" name="Start">
+            <bpmn:outgoing>c1</bpmn:outgoing>
+        </bpmn:startEvent>
+        <bpmn:sequenceFlow id="c1" sourceRef="start" targetRef="warehouseCheck"/>
+        <bpmn:userTask id="warehouseCheck" name="warehouseCheck" flowable:assignee="مسئول انبار">
+            <bpmn:incoming>c1</bpmn:incoming>
+            <bpmn:outgoing>c2</bpmn:outgoing>
+        </bpmn:userTask>
+        <bpmn:sequenceFlow id="c2" sourceRef="warehouseCheck" targetRef="financeApproval"/>
+        <bpmn:userTask id="financeApproval" name="financeApproval" flowable:assignee="مدیر مالی">
+            <bpmn:incoming>c2</bpmn:incoming>
+            <bpmn:outgoing>c3</bpmn:outgoing>
+        </bpmn:userTask>
+        <bpmn:sequenceFlow id="c3" sourceRef="financeApproval" targetRef="ceoApproval"/>
+        <bpmn:userTask id="ceoApproval" name="ceoApproval" flowable:assignee="مدیرعامل">
+            <bpmn:incoming>c3</bpmn:incoming>
+            <bpmn:outgoing>c4</bpmn:outgoing>
+        </bpmn:userTask>
+        <bpmn:sequenceFlow id="c4" sourceRef="ceoApproval" targetRef="end"/>
+        <bpmn:endEvent id="end" name="End">
+            <bpmn:incoming>c4</bpmn:incoming>
+        </bpmn:endEvent>
+    </bpmn:process>
+</bpmn:definitions>

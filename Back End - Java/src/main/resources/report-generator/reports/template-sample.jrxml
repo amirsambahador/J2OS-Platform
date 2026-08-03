@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    template-sample: template used by TemplateReport.
+    Rendered by running the queryString below against the caller-supplied JDBC
+    Connection — see TemplateReportEngine demos in Example.java. Same visual layout
+    as entity-sample.jrxml (in-memory data), kept in sync intentionally so the two
+    engines produce comparable output.
+    Persian text and the Vazirmatn font are used throughout to exercise this library's
+    RTL/Persian rendering support; Vazirmatn must be registered via
+    jasperreports_extension.properties for PDF export to render it correctly.
+-->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="template-sample" pageWidth="595" pageHeight="842" columnWidth="555"
+              leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+
+    <parameter name="title" class="java.lang.String"/>
+
+    <!-- Run against the live Connection passed in by TemplateReportEngine; field names
+         below must match this query's column aliases. -->
+    <queryString>
+        <![CDATA[select name, family from person]]>
+    </queryString>
+
+    <field name="name" class="java.lang.String"/>
+    <field name="family" class="java.lang.String"/>
+
+    <!-- Logo + right-aligned title, using the "title" parameter supplied by the caller. -->
+    <title>
+        <band height="80">
+            <image scaleImage="RetainShape">
+                <reportElement x="0" y="0" width="94" height="80"/>
+                <imageExpression class="java.lang.String"><![CDATA[
+        "report-generator/images/logo.png"
+    ]]></imageExpression>
+            </image>
+            <textField>
+                <reportElement x="0" y="0" width="555" height="80"/>
+                <box rightPadding="6"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle">
+                    <font fontName="Vazirmatn" size="14" isBold="true"/>
+                </textElement>
+                <textFieldExpression><![CDATA[$P{title}]]></textFieldExpression>
+            </textField>
+        </band>
+    </title>
+
+    <!-- Dark header row with the two right-aligned column labels (name, family name). -->
+    <columnHeader>
+        <band height="28">
+            <rectangle>
+                <reportElement x="0" y="0" width="555" height="28" backcolor="#2C3E50" mode="Opaque"/>
+                <graphicElement><pen lineWidth="0.0"/></graphicElement>
+            </rectangle>
+            <staticText>
+                <reportElement x="0" y="0" width="277" height="28" forecolor="#FFFFFF"/>
+                <box leftPadding="8" rightPadding="8"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle">
+                    <font fontName="Vazirmatn" size="11" isBold="true"/>
+                </textElement>
+                <text><![CDATA[نام]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="277" y="0" width="278" height="28" forecolor="#FFFFFF"/>
+                <box leftPadding="8" rightPadding="8"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle">
+                    <font fontName="Vazirmatn" size="11" isBold="true"/>
+                </textElement>
+                <text><![CDATA[نام خانوادگی]]></text>
+            </staticText>
+        </band>
+    </columnHeader>
+
+    <!-- One row per query result; REPORT_COUNT alternates the row background for readability. -->
+    <detail>
+        <band height="26">
+            <rectangle>
+                <reportElement x="0" y="0" width="555" height="26" backcolor="#F4F6F7" mode="Opaque">
+                    <printWhenExpression><![CDATA[$V{REPORT_COUNT} % 2 == 0]]></printWhenExpression>
+                </reportElement>
+                <graphicElement><pen lineWidth="0.0"/></graphicElement>
+            </rectangle>
+            <textField>
+                <reportElement x="0" y="0" width="277" height="26"/>
+                <box leftPadding="8" rightPadding="8">
+                    <pen lineWidth="0.5" lineColor="#DCE1E4"/>
+                </box>
+                <textElement textAlignment="Right" verticalAlignment="Middle">
+                    <font fontName="Vazirmatn" size="11"/>
+                </textElement>
+                <textFieldExpression><![CDATA[$F{name}]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="277" y="0" width="278" height="26"/>
+                <box leftPadding="8" rightPadding="8">
+                    <pen lineWidth="0.5" lineColor="#DCE1E4"/>
+                </box>
+                <textElement textAlignment="Right" verticalAlignment="Middle">
+                    <font fontName="Vazirmatn" size="11"/>
+                </textElement>
+                <textFieldExpression><![CDATA[$F{family}]]></textFieldExpression>
+            </textField>
+        </band>
+    </detail>
+
+    <!-- Centered "page N" footer, using JasperReports' built-in PAGE_NUMBER variable. -->
+    <pageFooter>
+        <band height="20">
+            <textField>
+                <reportElement x="0" y="0" width="555" height="20"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle">
+                    <font fontName="Vazirmatn" size="9"/>
+                </textElement>
+                <textFieldExpression><![CDATA["صفحه " + $V{PAGE_NUMBER}]]></textFieldExpression>
+            </textField>
+        </band>
+    </pageFooter>
+</jasperReport>
