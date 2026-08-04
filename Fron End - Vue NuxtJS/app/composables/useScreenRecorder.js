@@ -120,17 +120,8 @@ export const useScreenRecorder = () => {
       }
     }
 
-    // Registered once, here — not inside stop() — so it fires no matter
-    // which path (explicit stop(), or the track-ended listener below)
-    // triggers recorder.stop().
     recorder.onstop = finalizeRecording
 
-    // The user can end screen sharing from the browser's own native
-    // "Stop sharing" control at any time, entirely outside this module's
-    // control. Without this listener that event is invisible to us: the
-    // combined stream may still hold a live audio track, so MediaRecorder
-    // will keep "recording" against a dead video track indefinitely.
-    // Driving stop() from here guarantees deterministic teardown either way.
     const [displayVideoTrack] = displayStream.getVideoTracks()
     displayVideoTrack.addEventListener('ended', () => {
       if (recorder && recorder.state !== 'inactive') {
