@@ -30,6 +30,14 @@ import java.util.concurrent.atomic.AtomicLong;
  * caller must invoke {@link #save(String)} explicitly. On construction, an
  * existing container file (if any) is automatically restored.
  * <p>
+ * <b>Concurrency notice:</b> {@link #save(String)} and {@link #load(String)} both
+ * hold {@link #fileLock} for their entire duration — including, for {@code load},
+ * the point at which the in-memory {@link #container} is cleared and repopulated.
+ * This prevents a {@code load()} running concurrently with a mutating call (e.g.
+ * {@link #create}, {@link #put}, {@link #remove}, {@link #setField}, {@link #invoke})
+ * from discarding that call's effect by overwriting the live container with a
+ * snapshot read before the mutation happened.
+ * <p>
  * <b>Security notice:</b> {@link #create} instantiates any class reachable on this
  * server's classpath, and {@link #invoke}/{@link #setField}/{@link #getField} can call any
  * method or read/write any field (including non-public ones) on an object already stored in
@@ -56,7 +64,9 @@ public class JCruxServer extends UnicastRemoteObject implements JCruxRemote {
      */
     private final String containerFile;
     /**
-     * Guards concurrent access to {@link #containerFile} during save/load.
+     * Guards concurrent access to {@link #containerFile} during save/load, and — for
+     * {@link #load(String)} — also guards the swap of the in-memory {@link #container}
+     * contents, so a save/load never observes or clobbers a partially-applied mutation.
      */
     private final Object fileLock = new Object();
     /**
@@ -189,6 +199,15 @@ public class JCruxServer extends UnicastRemoteObject implements JCruxRemote {
 
     /**
      * Replaces the container's contents with what is currently stored in {@link #containerFile}.
+     * <p>
+     * Reading the file and swapping it into the live {@link #container} happen atomically
+     * with respect to {@link #save(String)} and to each other: both are performed inside a
+     * single {@code synchronized(fileLock)} block, so no mutating call
+     * ({@link #create}, {@link #put}, {@link #remove}, {@link #setField}, {@link #invoke})
+     * that completes concurrently with this call can have its effect silently discarded by
+     * the {@code container.clear()} / {@code container.putAll(...)} swap below. Any mutating
+     * call that runs concurrently with {@code load()} either fully completes before this
+     * swap starts, or fully completes after it — never in between.
      *
      * @param token the caller's authentication token; must match this container's token
      * @throws Exception if the token is invalid, or if reading from disk fails
@@ -196,15 +215,15 @@ public class JCruxServer extends UnicastRemoteObject implements JCruxRemote {
     @SuppressWarnings("unchecked")
     public void load(String token) throws Exception {
         checkToken(token);
-        Map<String, Object> loaded;
         synchronized (fileLock) {
+            Map<String, Object> loaded;
             try (FileInputStream fis = new FileInputStream(containerFile);
                  ObjectInputStream ois = new ObjectInputStream(fis)) {
                 loaded = (Map<String, Object>) ois.readObject();
             }
+            container.clear();
+            container.putAll(loaded);
         }
-        container.clear();
-        container.putAll(loaded);
     }
 
     /**

@@ -4,7 +4,9 @@ const visibility = ref('none')
 const toast = useToast()
 
 onMounted(() => {
-  recorder.init('preview', true, true)
+  recorder.init('preview', true, true, () => {
+    visibility.value = 'none'
+  })
 })
 
 const start = async () => {
@@ -20,7 +22,6 @@ const start = async () => {
 const stop = () => {
   try {
     recorder.stop('test.webm')
-    visibility.value = 'none'
   } catch (e) {
     console.error(e.message)
     toast.add({ title: 'خطا', description: e.message, color: 'error' })

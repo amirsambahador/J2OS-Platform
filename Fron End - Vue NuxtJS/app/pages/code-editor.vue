@@ -57,7 +57,7 @@ function handleSet() {
 
 onMounted(async () => {
   await editor1.init('editor1', {
-    language: 'javascript',
+    language: 'java',
     snippets: javaSnippets,
     autocompletes: jpaAutocompletes
   })

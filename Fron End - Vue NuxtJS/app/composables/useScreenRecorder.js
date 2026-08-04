@@ -12,8 +12,10 @@ export const useScreenRecorder = () => {
   let video
   let useMic = false
   let useSystemAudio = false
+  let onRecordingEnded = null
+  let pendingFileName = 'screen-record.webm'
 
-  const init = (videoId, captureMic = false, captureSystemAudio = false) => {
+  const init = (videoId, captureMic = false, captureSystemAudio = false, onEnded = null) => {
     video = document.getElementById(videoId)
 
     if (!video) {
@@ -22,6 +24,32 @@ export const useScreenRecorder = () => {
 
     useMic = captureMic
     useSystemAudio = captureSystemAudio
+    onRecordingEnded = onEnded
+  }
+
+  const finalizeRecording = () => {
+    const blob = new Blob(chunks, { type: 'video/webm' })
+    const url = URL.createObjectURL(blob)
+
+    const link = document.createElement('a')
+    link.href = url
+    link.download = pendingFileName
+    link.click()
+
+    URL.revokeObjectURL(url)
+
+    chunks = []
+
+    displayStream?.getTracks().forEach(track => track.stop())
+    micStream?.getTracks().forEach(track => track.stop())
+    audioContext?.close()
+
+    displayStream = null
+    micStream = null
+    audioContext = null
+    combinedStream = null
+
+    onRecordingEnded?.()
   }
 
   const start = async () => {
@@ -34,6 +62,7 @@ export const useScreenRecorder = () => {
     }
 
     chunks = []
+    pendingFileName = 'screen-record.webm'
 
     try {
       displayStream = await navigator.mediaDevices.getDisplayMedia({
@@ -91,6 +120,24 @@ export const useScreenRecorder = () => {
       }
     }
 
+    // Registered once, here — not inside stop() — so it fires no matter
+    // which path (explicit stop(), or the track-ended listener below)
+    // triggers recorder.stop().
+    recorder.onstop = finalizeRecording
+
+    // The user can end screen sharing from the browser's own native
+    // "Stop sharing" control at any time, entirely outside this module's
+    // control. Without this listener that event is invisible to us: the
+    // combined stream may still hold a live audio track, so MediaRecorder
+    // will keep "recording" against a dead video track indefinitely.
+    // Driving stop() from here guarantees deterministic teardown either way.
+    const [displayVideoTrack] = displayStream.getVideoTracks()
+    displayVideoTrack.addEventListener('ended', () => {
+      if (recorder && recorder.state !== 'inactive') {
+        recorder.stop()
+      }
+    })
+
     recorder.start()
   }
 
@@ -99,29 +146,7 @@ export const useScreenRecorder = () => {
       throw new Error('هیچ ضبطی برای توقف وجود ندارد')
     }
 
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' })
-      const url = URL.createObjectURL(blob)
-
-      const link = document.createElement('a')
-      link.href = url
-      link.download = fileName
-      link.click()
-
-      URL.revokeObjectURL(url)
-
-      chunks = []
-
-      displayStream?.getTracks().forEach(track => track.stop())
-      micStream?.getTracks().forEach(track => track.stop())
-      audioContext?.close()
-
-      displayStream = null
-      micStream = null
-      audioContext = null
-      combinedStream = null
-    }
-
+    pendingFileName = fileName
     recorder.stop()
   }
 
