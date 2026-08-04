@@ -25,6 +25,10 @@ function onError(error) {
 function onEnd() {
   console.log('END')
 }
+
+onBeforeUnmount(() => {
+  speech.stop()
+})
 </script>
 
 <template>

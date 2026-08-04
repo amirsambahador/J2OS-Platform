@@ -27,6 +27,10 @@ const stop = () => {
     toast.add({ title: 'خطا', description: e.message, color: 'error' })
   }
 }
+
+onBeforeUnmount(() => {
+  stop()
+})
 </script>
 
 <template>
