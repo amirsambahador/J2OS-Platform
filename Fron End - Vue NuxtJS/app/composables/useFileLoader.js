@@ -19,10 +19,11 @@ export const useFileLoader = () => {
       const script = document.createElement('script')
       script.src = src
       script.async = true
-      script.setAttribute('data-dynamic', 'true')// نشانه اینکه دستی اضافه شده است
+      script.setAttribute('data-dynamic', 'true')
 
       script.onload = () => resolve()
       script.onerror = () => {
+        script.remove()
         scriptLoadPromises.delete(src)
         scriptRefCounts.delete(src)
         reject(new Error(`Failed to load JS: ${src}`))
@@ -46,10 +47,11 @@ export const useFileLoader = () => {
       const link = document.createElement('link')
       link.rel = 'stylesheet'
       link.href = href
-      link.setAttribute('data-dynamic', 'true')// نشانه اینکه دستی اضافه شده است
+      link.setAttribute('data-dynamic', 'true')
 
       link.onload = () => resolve()
       link.onerror = () => {
+        link.remove()
         styleLoadPromises.delete(href)
         styleRefCounts.delete(href)
         reject(new Error(`Failed to load CSS: ${href}`))
@@ -64,11 +66,15 @@ export const useFileLoader = () => {
 
   const removeAllDynamicFiles = () => {
     document.querySelectorAll('[data-dynamic="true"]').forEach((el) => {
-      console.log('Removing dynamic file:', el.src || el.href)
-      scriptLoadPromises.delete(el.src)
-      styleLoadPromises.delete(el.href)
-      scriptRefCounts.delete(el.src)
-      styleRefCounts.delete(el.href)
+      const rawSource = el.getAttribute('src') || el.getAttribute('href')
+
+      console.log('Removing dynamic file:', rawSource)
+
+      scriptLoadPromises.delete(rawSource)
+      styleLoadPromises.delete(rawSource)
+      scriptRefCounts.delete(rawSource)
+      styleRefCounts.delete(rawSource)
+
       el.remove()
     })
   }

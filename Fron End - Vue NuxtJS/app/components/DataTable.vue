@@ -3,14 +3,36 @@
  * @author amirsam bahador, mohammad ghaderi
  * @version 2.3
  */
+
 const props = defineProps({
-  url: { type: String, required: true },
-  columns: { type: Array, required: true },
-  pageSize: { type: Number, default: 10 },
-  defaultSort: { type: String, required: true },
-  rowKey: { type: String, default: 'id' },
-  emptyText: { type: String, default: 'داده‌ای وجود ندارد' },
-  rowStyle: { type: Function, default: () => '' }
+  url: {
+    type: String,
+    required: true
+  },
+  columns: {
+    type: Array,
+    required: true
+  },
+  pageSize: {
+    type: Number,
+    default: 10
+  },
+  defaultSort: {
+    type: String,
+    required: true
+  },
+  rowKey: {
+    type: String,
+    default: 'id'
+  },
+  emptyText: {
+    type: String,
+    default: 'داده‌ای وجود ندارد'
+  },
+  rowStyle: {
+    type: Function,
+    default: () => ''
+  }
 })
 
 const emit = defineEmits(['selected', 'error'])
@@ -25,6 +47,7 @@ const sort = ref(props.defaultSort)
 const order = ref('ASC')
 const rowSelection = ref({})
 const radioUniqueId = useId()
+
 let controller = null
 
 async function loadData() {
@@ -36,6 +59,7 @@ async function loadData() {
     total.value = 0
     loading.value = false
     error.value = null
+
     return
   }
 
@@ -48,8 +72,8 @@ async function loadData() {
 
   try {
     const params = new URLSearchParams({
-      page: page.value,
-      rows: props.pageSize,
+      page: String(page.value),
+      rows: String(props.pageSize),
       q: search.value,
       sort: sort.value,
       order: order.value
@@ -57,29 +81,26 @@ async function loadData() {
 
     const response = await fetch(
       `${props.url}${params}`,
-      { signal: currentController.signal }
+      {
+        signal: currentController.signal
+      }
     )
 
-    /**
-    const token = entityManager.findByKey('token')
-    const response = await fetch(`${props.url}${params}`, {
-      signal: currentController.signal,
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` })
-      }
-    })
-    **/
-
-    if (!response.ok)
+    if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)
+    }
 
     const data = await response.json()
 
-    if (controller !== currentController)
+    if (controller !== currentController) {
       return
+    }
 
-    rows.value = data.rows || []
-    total.value = data.total || 0
+    rows.value = Array.isArray(data.rows)
+      ? data.rows
+      : []
+
+    total.value = Number(data.total) || 0
     error.value = null
   } catch (e) {
     if (e.name !== 'AbortError') {
@@ -93,8 +114,9 @@ async function loadData() {
       }
     }
   } finally {
-    if (controller === currentController)
+    if (controller === currentController) {
       loading.value = false
+    }
   }
 }
 
@@ -104,17 +126,23 @@ function reload() {
   loadData()
 }
 
-defineExpose({ reload })
+defineExpose({
+  reload
+})
 
 function changeSort(col) {
-  if (!col.sortable) return
-  if (col.sortName) {
-    order.value = sort.value === col.sortName && order.value === 'ASC' ? 'DESC' : 'ASC'
-    sort.value = col.sortName
-  } else {
-    order.value = sort.value === col.field && order.value === 'ASC' ? 'DESC' : 'ASC'
-    sort.value = col.field
+  if (!col.sortable) {
+    return
   }
+
+  const nextSort = col.sortName || col.field
+
+  order.value
+    = sort.value === nextSort && order.value === 'ASC'
+      ? 'DESC'
+      : 'ASC'
+
+  sort.value = nextSort
 
   if (page.value !== 1) {
     page.value = 1
@@ -125,7 +153,7 @@ function changeSort(col) {
 
 function onSelect(e, row) {
   rowSelection.value = {
-    [row.getValue(props.rowKey)]: true
+    [row.id]: true
   }
 
   emit('selected', row.original)
@@ -147,25 +175,49 @@ const tableColumns = computed(() => [
   {
     id: 'select',
     header: 'گزینه',
-    cell: ({ row }) => h('div', {
-      class: 'px-6 py-3',
-      style: props.rowStyle(row.original)
-    }, h('input', {
-      name: radioUniqueId,
-      type: 'radio',
 
-      checked: !!rowSelection.value[row.getValue(props.rowKey)],
+    cell: ({ row }) =>
+      h(
+        'div',
+        {
+          class: 'px-6 py-3',
+          style: props.rowStyle(row.original)
+        },
+        h('input', {
+          name: radioUniqueId,
+          type: 'radio',
 
-      onClick: e => e.stopPropagation(),
-      onChange: () => onSelect(null, row)
-    }))
+          checked: !!rowSelection.value[row.id],
+
+          onClick: (event) => {
+            event.stopPropagation()
+          },
+
+          onChange: (event) => {
+            onSelect(event, row)
+          }
+        })
+      )
   },
+
   ...props.columns
-    .filter(col => availableFieldNames.value.has(col.field))
+    .filter(col =>
+      availableFieldNames.value.has(col.field)
+    )
     .map(col => ({
       id: col.sortName || col.field,
       accessorKey: col.field,
-      header: () => h('button', { disabled: !col.sortable, onClick: () => changeSort(col) }, col.label),
+
+      header: () =>
+        h(
+          'button',
+          {
+            disabled: !col.sortable,
+            onClick: () => changeSort(col)
+          },
+          col.label
+        ),
+
       cell: ({ row }) => {
         const value = col.processor
           ? col.processor(row.original[col.field])
@@ -177,15 +229,26 @@ const tableColumns = computed(() => [
         }
 
         if (col.render) {
-          return h('div', { ...cellProps, innerHTML: value })
+          return h(
+            'div',
+            {
+              ...cellProps,
+              innerHTML: value
+            }
+          )
         }
 
-        return h('div', cellProps, value)
+        return h(
+          'div',
+          cellProps,
+          value
+        )
       }
     }))
 ])
 
 let skipPageLoad = false
+let searchTimer
 
 watch(page, () => {
   if (skipPageLoad) {
@@ -195,8 +258,6 @@ watch(page, () => {
 
   loadData()
 })
-
-let searchTimer
 
 watch(search, () => {
   clearTimeout(searchTimer)
@@ -209,17 +270,20 @@ watch(search, () => {
   searchTimer = setTimeout(loadData, 500)
 })
 
-watch(() => props.url, () => {
-  rowSelection.value = {}
-  emit('selected', null)
+watch(
+  () => props.url,
+  () => {
+    rowSelection.value = {}
+    emit('selected', null)
 
-  if (page.value !== 1) {
-    page.value = 1
-    return
+    if (page.value !== 1) {
+      page.value = 1
+      return
+    }
+
+    loadData()
   }
-
-  loadData()
-})
+)
 
 onMounted(loadData)
 
@@ -234,10 +298,12 @@ onUnmounted(() => {
     <div class="flex">
       <div class="flex gap-3">
         <slot name="before-search" />
+
         <UInput
           v-model="search"
           placeholder="جستجو..."
         />
+
         <slot name="after-search" />
       </div>
     </div>
@@ -250,7 +316,10 @@ onUnmounted(() => {
         name="i-lucide-loader-circle"
         class="size-5 animate-spin"
       />
-      <span>در حال بارگذاری...</span>
+
+      <span>
+        در حال بارگذاری...
+      </span>
     </div>
 
     <div
@@ -261,7 +330,10 @@ onUnmounted(() => {
         name="i-lucide-circle-alert"
         class="size-8"
       />
-      <span>خطا در دریافت اطلاعات وجود دارد</span>
+
+      <span>
+        خطا در دریافت اطلاعات وجود دارد
+      </span>
     </div>
 
     <div
@@ -272,7 +344,10 @@ onUnmounted(() => {
         name="i-lucide-folder-x"
         class="size-8"
       />
-      <span>{{ emptyText }}</span>
+
+      <span>
+        {{ emptyText }}
+      </span>
     </div>
 
     <UTable
@@ -280,7 +355,7 @@ onUnmounted(() => {
       v-model:row-selection="rowSelection"
       :data="rows"
       :columns="tableColumns"
-      :get-row-id="(row) => String(row[rowKey])"
+      :get-row-id="row => String(row[rowKey])"
       :ui="{
         th: 'bg-accented',
         tr: 'odd:bg-elevated even:bg-default',

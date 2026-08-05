@@ -30,13 +30,19 @@ import java.util.concurrent.atomic.AtomicLong;
  * caller must invoke {@link #save(String)} explicitly. On construction, an
  * existing container file (if any) is automatically restored.
  * <p>
- * <b>Concurrency notice:</b> {@link #save(String)} and {@link #load(String)} both
- * hold {@link #fileLock} for their entire duration — including, for {@code load},
- * the point at which the in-memory {@link #container} is cleared and repopulated.
- * This prevents a {@code load()} running concurrently with a mutating call (e.g.
- * {@link #create}, {@link #put}, {@link #remove}, {@link #setField}, {@link #invoke})
- * from discarding that call's effect by overwriting the live container with a
- * snapshot read before the mutation happened.
+ * <b>Concurrency notice:</b> {@link #save(String)} writes each container entry while
+ * holding that entry's own object monitor — the same monitor mutating calls
+ * ({@link #invoke}, {@link #setField}, {@link #getField}) synchronize on — so every
+ * object it persists is a consistent, non-interleaved snapshot of that object's fields.
+ * {@link #save(String)} and {@link #load(String)} both hold {@link #fileLock} for their
+ * entire duration, so they never run concurrently with each other. Mutating calls on
+ * individual objects are not themselves synchronized on {@link #fileLock}, so a
+ * long-running mutating call on one object delays the writing of that entry — and,
+ * since all entries are written under a single {@link #fileLock} hold, delays the whole
+ * save — until it completes; methods invoked through this container should therefore be
+ * fast and non-blocking. For the same reason, {@link #load(String)} can swap the
+ * container's contents while a mutating call elsewhere is still in progress; see its
+ * Javadoc for how that interacts with such a call.
  * <p>
  * <b>Security notice:</b> {@link #create} instantiates any class reachable on this
  * server's classpath, and {@link #invoke}/{@link #setField}/{@link #getField} can call any
@@ -64,9 +70,12 @@ public class JCruxServer extends UnicastRemoteObject implements JCruxRemote {
      */
     private final String containerFile;
     /**
-     * Guards concurrent access to {@link #containerFile} during save/load, and — for
-     * {@link #load(String)} — also guards the swap of the in-memory {@link #container}
-     * contents, so a save/load never observes or clobbers a partially-applied mutation.
+     * Guards concurrent access to {@link #containerFile} during {@link #save(String)} and
+     * {@link #load(String)}, and — for {@link #load(String)} — also guards the swap of the
+     * in-memory {@link #container} contents, so {@link #save(String)} and {@link #load(String)}
+     * never run concurrently with each other. It does not, by itself, coordinate with mutating
+     * calls on individual objects; see the class-level Concurrency notice and
+     * {@link #load(String)} for how those interact with a concurrent {@link #load(String)}.
      */
     private final Object fileLock = new Object();
     /**
@@ -164,15 +173,13 @@ public class JCruxServer extends UnicastRemoteObject implements JCruxRemote {
      *
      * @throws RemoteException if the file exists but cannot be read or deserialized
      */
-    @SuppressWarnings("unchecked")
     private void restoreIfFileExists() throws RemoteException {
         File file = new File(containerFile);
         if (!file.exists()) {
             return;
         }
-        try (FileInputStream fis = new FileInputStream(file);
-             ObjectInputStream ois = new ObjectInputStream(fis)) {
-            container.putAll((Map<String, Object>) ois.readObject());
+        try {
+            container.putAll(readContainerFile());
             LOGGER.info("JCruxServer: restored {} object(s) from {}", container.size(), containerFile);
         } catch (Exception e) {
             throw new RemoteException("Failed to auto-restore container from " + containerFile, e);
@@ -181,6 +188,18 @@ public class JCruxServer extends UnicastRemoteObject implements JCruxRemote {
 
     /**
      * Serializes the entire container to {@link #containerFile}, overwriting any existing file.
+     * <p>
+     * The container's entries are first captured into a stable snapshot list, so the entry
+     * count written to the file's header always matches the number of entries written after
+     * it, independent of any concurrent {@link #create}/{@link #put}/{@link #remove} activity
+     * on {@link #container}. Each entry is then written while holding that entry's own object
+     * monitor — the same monitor {@link #invoke}, {@link #setField}, and {@link #getField}
+     * synchronize on — so a mutating call in progress on a given object is never interleaved
+     * with this method serializing that same object's fields. A mutation in progress on one
+     * object only delays the writing of that one entry (and, since all entries are written
+     * under a single {@link #fileLock} hold, delays this call as a whole) until the mutation
+     * completes; mutating calls on other objects, and writing of other entries, proceed
+     * unaffected.
      *
      * @param token the caller's authentication token; must match this container's token
      * @throws Exception if the token is invalid, or if writing to disk fails
@@ -188,9 +207,17 @@ public class JCruxServer extends UnicastRemoteObject implements JCruxRemote {
     public void save(String token) throws Exception {
         checkToken(token);
         synchronized (fileLock) {
+            List<Map.Entry<String, Object>> entries = new ArrayList<>(container.entrySet());
             try (FileOutputStream fos = new FileOutputStream(containerFile);
                  ObjectOutputStream oos = new ObjectOutputStream(fos)) {
-                oos.writeObject(container);
+                oos.writeInt(entries.size());
+                for (Map.Entry<String, Object> entry : entries) {
+                    Object storedObject = entry.getValue();
+                    synchronized (storedObject) {
+                        oos.writeObject(entry.getKey());
+                        oos.writeObject(storedObject);
+                    }
+                }
             }
             lastSaveTimestamp = System.currentTimeMillis();
             saveNumber.incrementAndGet();
@@ -202,25 +229,26 @@ public class JCruxServer extends UnicastRemoteObject implements JCruxRemote {
      * <p>
      * Reading the file and swapping it into the live {@link #container} happen atomically
      * with respect to {@link #save(String)} and to each other: both are performed inside a
-     * single {@code synchronized(fileLock)} block, so no mutating call
-     * ({@link #create}, {@link #put}, {@link #remove}, {@link #setField}, {@link #invoke})
-     * that completes concurrently with this call can have its effect silently discarded by
-     * the {@code container.clear()} / {@code container.putAll(...)} swap below. Any mutating
-     * call that runs concurrently with {@code load()} either fully completes before this
-     * swap starts, or fully completes after it — never in between.
+     * single {@code synchronized(fileLock)} block, so no {@link #save(String)} call that
+     * completes concurrently with this call can have its effect silently discarded by the
+     * {@code container.clear()} / {@code container.putAll(...)} swap below.
+     * <p>
+     * This method does not wait for in-progress mutating calls ({@link #create}, {@link #put},
+     * {@link #remove}, {@link #setField}, {@link #invoke}) on individual objects to finish
+     * before performing that swap, since those calls are not synchronized on
+     * {@link #fileLock}. A mutating call that already holds a reference to an object (obtained
+     * via {@code container.get(id)}) before this swap runs continues to operate on that
+     * now-orphaned instance; its effect is not reflected in the container after this call
+     * returns, and will not appear in any subsequent {@link #save(String)}. Call this method
+     * only when other clients are not actively mutating objects in this container.
      *
      * @param token the caller's authentication token; must match this container's token
      * @throws Exception if the token is invalid, or if reading from disk fails
      */
-    @SuppressWarnings("unchecked")
     public void load(String token) throws Exception {
         checkToken(token);
         synchronized (fileLock) {
-            Map<String, Object> loaded;
-            try (FileInputStream fis = new FileInputStream(containerFile);
-                 ObjectInputStream ois = new ObjectInputStream(fis)) {
-                loaded = (Map<String, Object>) ois.readObject();
-            }
+            Map<String, Object> loaded = readContainerFile();
             container.clear();
             container.putAll(loaded);
         }
@@ -489,6 +517,29 @@ public class JCruxServer extends UnicastRemoteObject implements JCruxRemote {
     private void autosaveIfEnabled(String token) throws Exception {
         if (autosave) {
             save(token);
+        }
+    }
+
+    /**
+     * Reads {@link #containerFile} in the entry-by-entry format written by {@link #save(String)}:
+     * a leading entry count, followed by that many (id, object) pairs written in order.
+     *
+     * @return the stored id-to-object entries, in the order they were written
+     * @throws IOException            if the file cannot be read, or its contents are truncated
+     *                                 relative to the entry count in its header
+     * @throws ClassNotFoundException if a stored object's class cannot be resolved during deserialization
+     */
+    private Map<String, Object> readContainerFile() throws IOException, ClassNotFoundException {
+        try (FileInputStream fis = new FileInputStream(containerFile);
+             ObjectInputStream ois = new ObjectInputStream(fis)) {
+            int entryCount = ois.readInt();
+            Map<String, Object> loaded = new LinkedHashMap<>();
+            for (int i = 0; i < entryCount; i++) {
+                String objectId = (String) ois.readObject();
+                Object storedObject = ois.readObject();
+                loaded.put(objectId, storedObject);
+            }
+            return loaded;
         }
     }
 

@@ -1,8 +1,14 @@
 <script setup>
 const loader = useFileLoader()
+
 onMounted(() => {
   loader.importStyleSheetFile('/external-css/external-css.css')
   loader.importJavaScriptSourceFile('/external-js/external-js.js')
+})
+
+onUnmounted(() => {
+  loader.removeStyleSheetFile('/external-css/external-css.css')
+  loader.removeJavaScriptSourceFile('/external-js/external-js.js')
 })
 </script>
 

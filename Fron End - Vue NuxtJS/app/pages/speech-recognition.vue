@@ -4,6 +4,7 @@ const speech = useSpeechRecognitionAPI()
 const fileName = ref('')
 const result = ref('')
 const isSupported = ref(true)
+const isListening = ref(false)
 
 onMounted(() => {
   try {
@@ -20,13 +21,27 @@ function onResult(time, text, isFinal) {
 
 function onError(error) {
   result.value = error
+  isListening.value = speech.isListening()
 }
 
 function onEnd() {
-  console.log('END')
+  isListening.value = false
+}
+
+function start() {
+  speech.start()
+  isListening.value = speech.isListening()
+}
+
+function stop() {
+  speech.stop()
 }
 
 onBeforeUnmount(() => {
+  speech.stop()
+})
+
+onDeactivated(() => {
   speech.stop()
 })
 </script>
@@ -36,11 +51,17 @@ onBeforeUnmount(() => {
     <h1>تست Speech Recognition</h1>
 
     <template v-if="isSupported">
-      <UButton @click="speech.start()">
+      <UButton
+        :disabled="isListening"
+        @click="start"
+      >
         شروع
       </UButton>
 
-      <UButton @click="speech.stop()">
+      <UButton
+        :disabled="!isListening"
+        @click="stop"
+      >
         توقف
       </UButton>
 
@@ -58,6 +79,14 @@ onBeforeUnmount(() => {
         v-model="fileName"
         placeholder="نام فایل"
       />
+
+      <p v-if="isListening" class="text-green-500">
+        در حال شنیدن...
+      </p>
+      <p v-else class="text-gray-400">
+        متوقف شده
+      </p>
+
       <p>
         {{ result }}
       </p>

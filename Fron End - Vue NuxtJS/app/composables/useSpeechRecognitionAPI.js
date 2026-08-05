@@ -4,6 +4,7 @@
  */
 export const useSpeechRecognitionAPI = () => {
   let recognition
+  let listening = false
 
   let exportContent = ''
 
@@ -39,6 +40,7 @@ export const useSpeechRecognitionAPI = () => {
       recognition.continuous = true
       recognition.interimResults = true
     }
+
     recognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const time = new Date().toLocaleTimeString('fa-IR')
@@ -58,7 +60,12 @@ export const useSpeechRecognitionAPI = () => {
       onError(translateError(event.error))
     }
 
+    recognition.onstart = () => {
+      listening = true
+    }
+
     recognition.onend = () => {
+      listening = false
       onEnd()
     }
   }
@@ -72,6 +79,8 @@ export const useSpeechRecognitionAPI = () => {
   }
 
   const stop = () => recognition?.stop()
+
+  const isListening = () => listening
 
   const clear = () => {
     exportContent = ''
@@ -100,6 +109,7 @@ export const useSpeechRecognitionAPI = () => {
     start,
     stop,
     clear,
-    exportFile
+    exportFile,
+    isListening
   }
 }

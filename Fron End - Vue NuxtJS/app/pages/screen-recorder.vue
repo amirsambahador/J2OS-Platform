@@ -29,7 +29,9 @@ const stop = () => {
 }
 
 onBeforeUnmount(() => {
-  stop()
+  if (recorder.isRecording()) {
+    stop()
+  }
 })
 </script>
 
