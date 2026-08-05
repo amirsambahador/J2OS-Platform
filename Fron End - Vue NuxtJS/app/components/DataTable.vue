@@ -85,6 +85,16 @@ async function loadData() {
         signal: currentController.signal
       }
     )
+    //with token
+    /**
+     const token = entityManager.findByKey('token')
+     const response = await fetch(`${props.url}${params}`, {
+     signal: currentController.signal,
+     headers: {
+     ...(token && { Authorization: `Bearer ${token}` })
+     }
+     })
+     **/
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)
