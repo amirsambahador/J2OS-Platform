@@ -1,12 +1,12 @@
-package org.j2os.examples.desktop.jshard;
+package org.examples.jshard;
 
-import org.j2os.platform.jshard.algorithm.JShardHashAlgorithm;
-import org.j2os.platform.jshard.config.JShardConnectionConfig;
-import org.j2os.platform.jshard.config.JShardTableConfig;
-import org.j2os.platform.jshard.datasource.JShardDataSource;
-import org.j2os.platform.jshard.datasource.JShardDataSourceProvider;
-import org.j2os.platform.jshard.datasource.JShardDataSourceRegistry;
-import org.j2os.platform.jshard.router.JShardRouter;
+import org.jshard.algorithm.AlgorithmConfig;
+import org.jshard.config.JShardConnectionConfig;
+import org.jshard.config.JShardTableConfig;
+import org.jshard.datasource.JShardDataSource;
+import org.jshard.datasource.JShardDataSourceProvider;
+import org.jshard.datasource.JShardDataSourceRegistry;
+import org.jshard.router.JShardRouter;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -15,7 +15,6 @@ import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 
 /**
  * Full guided tour of the {@code jshard} module: every public method of
@@ -27,9 +26,16 @@ import java.util.Set;
  * scenarios (basic clustering, primary/replica routing, bulk config + health checks,
  * multi-tenant isolation) against a real PostgreSQL instance — this one is the reference for
  * "what does every method do", not a usage scenario in its own right.
+ * <p>
+ * This fork replaces the original ring-based {@code JShardHashAlgorithm} (which took
+ * {@code virtual-nodes-per-shard} and {@code hash-seed} configuration, since a hash ring needs
+ * both) with {@link AlgorithmConfig}, a BinomialHash-based algorithm. BinomialHash has no ring
+ * and no virtual nodes, so it needs neither setting — the builder methods for them are gone,
+ * and {@link AlgorithmConfig#init(java.util.Properties)} recognizes only an optional
+ * {@code sharding-count} property, used for validation rather than ring construction.
  *
  * @author amirsam bahador, mohammad ghaderi
- * @version 2.3
+ * @author taha rouhi (adapted for BinomialHash)
  */
 public final class Example0 {
 
@@ -88,7 +94,7 @@ public final class Example0 {
         // 2. JShardTableConfig — table name + the column sharding is based on
         // ==================================================================
         JShardTableConfig personTable = new JShardTableConfig("person", "person_id");
-        System.out.println("table name: " + personTable.name());                 // table name (public field)
+        System.out.println("table name: " + personTable.name());                 // table name (record accessor)
         System.out.println("sharding column: " + personTable.shardingColumn());   // the column routing is based on
         System.out.println("table toString: " + personTable);                  // printable form
         System.out.println("table equals: " + personTable.equals(new JShardTableConfig("person", "person_id"))); // comparison
@@ -115,11 +121,12 @@ public final class Example0 {
         // ==================================================================
         // 5. JShardDataSourceProvider.builder() — building the cluster itself
         // ==================================================================
+        // Note: unlike the original ring-based algorithm, BinomialHash has no ring and no
+        // virtual nodes, so there's no .virtualNodesPerShard(...) or .hashSeed(...) here —
+        // those settings only make sense for a hash ring, and this algorithm doesn't have one.
         JShardDataSource dataSource = JShardDataSourceProvider.builder()
                 .shard("ds0", quickConfig)               // adds a shard with no replicas
                 .tables(List.of(personTable))            // same as .table(...), but when you already have a List<JShardTableConfig> ready
-                .virtualNodesPerShard(200)                // how many "virtual nodes" to give each shard on the hash ring (more evenness)
-                .hashSeed(0)                               // hash salt — changing it reshuffles the entire data-to-shard mapping
                 .showSql(true)                             // log the logical/actual SQL for every query
                 .build();                                  // the actual build step; this is where real connections to the databases happen
 
@@ -167,9 +174,11 @@ public final class Example0 {
         String predictedShard = router.getShardKey("u1"); // given just a value, tells you which shard it targets
         System.out.println("router.getShardKey(\"u1\"): " + predictedShard);
 
-        // You can also build a fully independent router (without any
-        // JShardDataSource) — e.g. to know in advance where a key will go.
-        JShardRouter standaloneRouter = new JShardRouter(Set.of("ds0", "ds1"), 200, 0);
+        // You can also build a fully independent router (without any JShardDataSource) — e.g.
+        // to know in advance where a key will go. Unlike the original ring-based JShardRouter,
+        // this one's constructor takes only the shard names — no virtual-node count or hash
+        // seed, since BinomialHash needs neither.
+        JShardRouter standaloneRouter = new JShardRouter(List.of("ds0", "ds1"));
         System.out.println("standalone router: " + standaloneRouter.getShardKey("u2"));
 
         // ==================================================================
@@ -185,15 +194,16 @@ public final class Example0 {
         manualPool.closeAll(); // closes every pool registered in this registry
 
         // ==================================================================
-        // 9. JShardHashAlgorithm — the hashing algorithm itself (very low level)
+        // 9. AlgorithmConfig — the BinomialHash routing algorithm itself (very low level)
         // ==================================================================
-        // This class isn't normally called directly — ShardingSphere invokes
-        // it internally via reflection. But since it's public, it can also be
-        // used directly (e.g. for testing or debugging).
-        JShardHashAlgorithm algo = new JShardHashAlgorithm();
+        // This class isn't normally called directly — ShardingSphere invokes it internally via
+        // reflection. But since it's public, it can also be used directly (e.g. for testing or
+        // debugging). It recognizes only one optional property, "sharding-count" — used to
+        // validate the actual shard count matches what was expected, not to size any ring,
+        // since BinomialHash builds no ring.
+        AlgorithmConfig algo = new AlgorithmConfig();
         Properties algoProps = new Properties();
-        algoProps.setProperty("virtual-nodes-per-shard", "200"); // init() reads and applies this
-        algoProps.setProperty("hash-seed", "0");
+        algoProps.setProperty("sharding-count", "2"); // init() reads and applies this
         algo.init(algoProps);                                     // initial algorithm configuration
         System.out.println("algorithm type: " + algo.getType()); // the algorithm type name (for registering with ShardingSphere)
         System.out.println("routeForTesting: " +

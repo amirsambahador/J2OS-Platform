@@ -1,6 +1,6 @@
-package org.j2os.platform.jshard.datasource;
+package org.jshard.datasource;
 
-import org.j2os.platform.jshard.router.JShardRouter;
+import org.jshard.router.JShardRouter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,6 +59,7 @@ public final class JShardDataSource implements DataSource, Closeable {
      *
      * @return this data source's router
      */
+
     public JShardRouter getRouter() {
         return router;
     }

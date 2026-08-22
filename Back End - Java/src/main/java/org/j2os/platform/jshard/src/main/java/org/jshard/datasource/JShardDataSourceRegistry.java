@@ -1,8 +1,8 @@
-package org.j2os.platform.jshard.datasource;
+package org.jshard.datasource;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import org.j2os.platform.jshard.config.JShardConnectionConfig;
+import org.jshard.config.JShardConnectionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,22 +84,24 @@ public class JShardDataSourceRegistry {
      * @return {@code true} if a valid connection could be established within the timeout
      */
     public static boolean isReachable(JShardConnectionConfig config, int timeoutSeconds) {
-        HikariConfig probeConfig = new HikariConfig();
-        probeConfig.setJdbcUrl(config.getJdbcUrl());
-        probeConfig.setUsername(config.getUsername());
-        probeConfig.setPassword(config.getPassword());
-        probeConfig.setDriverClassName(config.getDriverClassName());
-        probeConfig.setMaximumPoolSize(1);
-        probeConfig.setMinimumIdle(0);
-        long timeoutMs = Math.max(1, timeoutSeconds) * 1000L;
-        probeConfig.setConnectionTimeout(timeoutMs);
-        probeConfig.setInitializationFailTimeout(timeoutMs);
+        try {
+            HikariConfig probeConfig = new HikariConfig();
+            probeConfig.setJdbcUrl(config.getJdbcUrl());
+            probeConfig.setUsername(config.getUsername());
+            probeConfig.setPassword(config.getPassword());
+            probeConfig.setDriverClassName(config.getDriverClassName());
+            probeConfig.setMaximumPoolSize(1);
+            probeConfig.setMinimumIdle(0);
+            long timeoutMs = Math.max(1, timeoutSeconds) * 1000L;
+            probeConfig.setConnectionTimeout(timeoutMs);
+            probeConfig.setInitializationFailTimeout(timeoutMs);
 
-        try (HikariDataSource probeDs = new HikariDataSource(probeConfig);
-             Connection conn = probeDs.getConnection()) {
-            return conn.isValid(timeoutSeconds);
-        } catch (Exception e) {
-            LOGGER.debug("Shard is not reachable: {}", config, e);
+            try (HikariDataSource probeDs = new HikariDataSource(probeConfig);
+                 Connection conn = probeDs.getConnection()) {
+                return conn.isValid(timeoutSeconds);
+            }
+            }catch (Throwable t) {
+            LOGGER.debug("Shard is not reachable: {}", config, t);
             return false;
         }
     }

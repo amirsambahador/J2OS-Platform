@@ -1,8 +1,8 @@
-package org.j2os.examples.desktop.jshard;
+package org.examples.jshard;
 
-import org.j2os.platform.jshard.config.JShardConnectionConfig;
-import org.j2os.platform.jshard.datasource.JShardDataSource;
-import org.j2os.platform.jshard.datasource.JShardDataSourceProvider;
+import org.jshard.config.JShardConnectionConfig;
+import org.jshard.datasource.JShardDataSource;
+import org.jshard.datasource.JShardDataSourceProvider;
 
 /**
  * Demonstrates multi-tenant isolation: two completely independent {@link JShardDataSource}
@@ -10,7 +10,7 @@ import org.j2os.platform.jshard.datasource.JShardDataSourceProvider;
  * never contend with or affect the other's.
  *
  * @author amirsam bahador, mohammad ghaderi
- * @version 2.3
+ * @author taha rouhi (adapted for BinomialHash)
  */
 public class Example4 {
 

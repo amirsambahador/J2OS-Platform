@@ -1,4 +1,6 @@
-package org.j2os.platform.jshard.config;
+package org.jshard.config;
+
+import org.jshard.datasource.JShardDataSourceRegistry;
 
 import java.util.Objects;
 
@@ -13,7 +15,7 @@ import java.util.Objects;
  * lifetime, minimum idle, validation timeout, keepalive time); any left
  * unset are {@code null} and fall back to the connection pool's own
  * defaults wherever this config is consumed
- * (see {@link org.j2os.platform.jshard.datasource.JShardDataSourceRegistry}).
+ * (see {@link JShardDataSourceRegistry}).
  * <p>
  * {@link #toString()} deliberately omits the password and strips any query
  * string from the JDBC URL, so this object is safe to include directly in

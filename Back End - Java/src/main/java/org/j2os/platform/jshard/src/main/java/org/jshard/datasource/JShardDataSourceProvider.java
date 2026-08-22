@@ -1,4 +1,4 @@
-package org.j2os.platform.jshard.datasource;
+package org.jshard.datasource;
 
 import org.apache.shardingsphere.driver.api.ShardingSphereDataSourceFactory;
 import org.apache.shardingsphere.infra.algorithm.core.config.AlgorithmConfiguration;
@@ -8,10 +8,12 @@ import org.apache.shardingsphere.readwritesplitting.config.rule.ReadwriteSplitti
 import org.apache.shardingsphere.sharding.api.config.ShardingRuleConfiguration;
 import org.apache.shardingsphere.sharding.api.config.rule.ShardingTableRuleConfiguration;
 import org.apache.shardingsphere.sharding.api.config.strategy.sharding.StandardShardingStrategyConfiguration;
-import org.j2os.platform.jshard.algorithm.JShardHashAlgorithm;
-import org.j2os.platform.jshard.config.JShardConnectionConfig;
-import org.j2os.platform.jshard.config.JShardTableConfig;
-import org.j2os.platform.jshard.router.JShardRouter;
+import org.jshard.algorithm.Algorithm;
+
+import org.jshard.algorithm.AlgorithmConfig;
+import org.jshard.config.JShardConnectionConfig;
+import org.jshard.config.JShardTableConfig;
+import org.jshard.router.JShardRouter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,16 +24,17 @@ import java.util.stream.Collectors;
 /**
  * Assembles a ready-to-use {@link JShardDataSource} from a set of shards
  * (each with an optional primary/replica list) and tables, wiring up
- * ShardingSphere's {@link ShardingRuleConfiguration} (using
- * {@link JShardHashAlgorithm} as the sharding algorithm for every table)
- * and, for any shard with replicas, a
- * {@link ReadwriteSplittingRuleConfiguration} routing writes to the primary
- * and reads across the replicas.
+ * ShardingSphere's {@link ShardingRuleConfiguration} to route every
+ * table's queries via {@link AlgorithmConfig} - a stateless BinomialHash
+ * consistent hashing sharding strategy (see {@link Algorithm}) - and, for
+ * any shard with replicas, a {@link ReadwriteSplittingRuleConfiguration}
+ * routing writes to the primary and reads across the replicas.
  * <p>
  * Entry point is {@link #builder()}; see {@link Builder} for the full
  * configuration surface.
  *
  * @author amirsam bahador, mohammad ghaderi
+ * @author taha rouhi
  * @version 2.3
  */
 public final class JShardDataSourceProvider {
@@ -49,6 +52,8 @@ public final class JShardDataSourceProvider {
     public static Builder builder() {
         return new Builder();
     }
+
+
 
     /**
      * Checks that every primary and replica connection configuration in
@@ -81,6 +86,8 @@ public final class JShardDataSourceProvider {
         }
     }
 
+
+
     /**
      * Validates the full configuration, creates every physical connection
      * pool, assembles the ShardingSphere rule set, and builds the final
@@ -90,8 +97,6 @@ public final class JShardDataSourceProvider {
      *
      * @param primaryReplicaMap    the shards to build, keyed by logical shard name
      * @param tables                the tables to configure sharding for
-     * @param virtualNodesPerShard  the number of virtual nodes per shard on the hash ring, or {@code null} to use {@link JShardHashAlgorithm#DEFAULT_VIRTUAL_NODES_PER_SHARD}
-     * @param hashSeed              the hash seed used for shard placement and routing
      * @param showSql               whether ShardingSphere should log the logical/actual SQL for every query
      * @return the fully assembled, ready-to-use {@link JShardDataSource}
      * @throws IllegalArgumentException if {@code primaryReplicaMap} or {@code tables} is null/empty,
@@ -102,8 +107,6 @@ public final class JShardDataSourceProvider {
     private static JShardDataSource buildDataSource(
             Map<String, List<JShardConnectionConfig>> primaryReplicaMap,
             List<JShardTableConfig> tables,
-            Integer virtualNodesPerShard,
-            int hashSeed,
             boolean showSql
     ) throws Exception {
 
@@ -113,21 +116,10 @@ public final class JShardDataSourceProvider {
         if (tables == null || tables.isEmpty()) {
             throw new IllegalArgumentException("At least one table must be added via .table(...)");
         }
-        if (virtualNodesPerShard != null) {
-            if (virtualNodesPerShard <= 0) {
-                throw new IllegalArgumentException("virtualNodesPerShard must be greater than zero");
-            }
-            if (virtualNodesPerShard > JShardHashAlgorithm.MAX_VIRTUAL_NODES_PER_SHARD) {
-                throw new IllegalArgumentException("virtualNodesPerShard (" + virtualNodesPerShard
-                        + ") exceeds the allowed maximum (" + JShardHashAlgorithm.MAX_VIRTUAL_NODES_PER_SHARD + ")");
-            }
-        }
+
         validateShardNames(primaryReplicaMap.keySet());
         validateNoDuplicateTableNames(tables);
 
-        int effectiveVNodes = virtualNodesPerShard != null
-                ? virtualNodesPerShard
-                : JShardHashAlgorithm.DEFAULT_VIRTUAL_NODES_PER_SHARD;
 
         JShardDataSourceRegistry pool = new JShardDataSourceRegistry();
         try {
@@ -171,10 +163,8 @@ public final class JShardDataSourceProvider {
                         new ShardingTableRuleConfiguration(table.name(), actualNodes);
 
                 Properties algoProps = new Properties();
-                algoProps.setProperty("algorithmClassName", JShardHashAlgorithm.class.getName());
+                algoProps.setProperty("algorithmClassName", AlgorithmConfig.class.getName());
                 algoProps.setProperty("sharding-count", String.valueOf(logicalNames.size()));
-                algoProps.setProperty("virtual-nodes-per-shard", String.valueOf(effectiveVNodes));
-                algoProps.setProperty("hash-seed", String.valueOf(hashSeed));
                 algoProps.setProperty("strategy", "standard");
 
                 String algoName = table.name() + "_hash_algo";
@@ -194,13 +184,17 @@ public final class JShardDataSourceProvider {
 
             DataSource rawDataSource = ShardingSphereDataSourceFactory.createDataSource(dsMap, rules, globalProps);
 
-            JShardRouter router = new JShardRouter(primaryReplicaMap.keySet(), effectiveVNodes, hashSeed);
+
+            JShardRouter router = new JShardRouter(logicalNames);
             return new JShardDataSource(rawDataSource, pool, router);
         } catch (Exception e) {
             pool.closeAll();
             throw e;
         }
     }
+
+
+
 
     // ---- Core ----
 
@@ -218,6 +212,10 @@ public final class JShardDataSourceProvider {
             }
         }
     }
+
+
+
+
 
     /**
      * Validates that every shard name is safe to use as a ShardingSphere
@@ -250,19 +248,19 @@ public final class JShardDataSourceProvider {
         }
     }
 
+
+
+
     /**
      * Fluent builder for {@link JShardDataSource}. Configure one or more
      * shards (each with an optional primary/replica list) via
      * {@link #shard} or {@link #shards}, one or more tables via
      * {@link #table} or {@link #tables}, optionally tune the hash ring via
-     * {@link #virtualNodesPerShard}/{@link #hashSeed}, and finally call
      * {@link #build()}.
      */
     public static final class Builder {
         private final Map<String, List<JShardConnectionConfig>> shards = new LinkedHashMap<>();
         private final List<JShardTableConfig> tables = new ArrayList<>();
-        private Integer virtualNodesPerShard;
-        private int hashSeed = JShardHashAlgorithm.DEFAULT_HASH_SEED;
         private boolean showSql = false;
 
         private Builder() {
@@ -349,32 +347,7 @@ public final class JShardDataSourceProvider {
             return this;
         }
 
-        /**
-         * Sets the number of virtual nodes placed on the hash ring per
-         * shard. Higher values spread load more evenly across shards at the
-         * cost of a larger ring; if not called,
-         * {@link JShardHashAlgorithm#DEFAULT_VIRTUAL_NODES_PER_SHARD} is used.
-         *
-         * @param virtualNodesPerShard the virtual node count; must be positive and at most {@link JShardHashAlgorithm#MAX_VIRTUAL_NODES_PER_SHARD}
-         * @return this builder
-         */
-        public Builder virtualNodesPerShard(int virtualNodesPerShard) {
-            this.virtualNodesPerShard = virtualNodesPerShard;
-            return this;
-        }
 
-        /**
-         * Sets the hash seed used for virtual-node placement and value
-         * routing. Changing this reshuffles the entire data-to-shard
-         * mapping; if not called, {@link JShardHashAlgorithm#DEFAULT_HASH_SEED} is used.
-         *
-         * @param hashSeed the hash seed
-         * @return this builder
-         */
-        public Builder hashSeed(int hashSeed) {
-            this.hashSeed = hashSeed;
-            return this;
-        }
 
         /**
          * Enables or disables ShardingSphere's logical/actual SQL logging
@@ -398,7 +371,10 @@ public final class JShardDataSourceProvider {
          *                    ShardingSphere data source fails to build
          */
         public JShardDataSource build() throws Exception {
-            return JShardDataSourceProvider.buildDataSource(shards, tables, virtualNodesPerShard, hashSeed, showSql);
+            return JShardDataSourceProvider.buildDataSource(shards, tables, showSql);
         }
+
+
+
     }
 }

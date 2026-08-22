@@ -1,4 +1,6 @@
-package org.j2os.platform.jshard.config;
+package org.jshard.config;
+
+import org.jshard.datasource.JShardDataSourceProvider;
 
 /**
  * Identifies a table to be sharded and the column its sharding decisions
@@ -9,7 +11,7 @@ package org.j2os.platform.jshard.config;
  * whitespace, and free of characters ({@code .}, {@code ,}, quotes,
  * whitespace, control characters) that could interfere with how
  * ShardingSphere composes actual data node expressions
- * (see {@link org.j2os.platform.jshard.datasource.JShardDataSourceProvider}).
+ * (see {@link JShardDataSourceProvider}).
  *
  * @param name           the logical table name
  * @param shardingColumn the column whose value determines which shard a row belongs to
