@@ -1,4 +1,4 @@
-# J2OS Platform
+# J2OS Platform 2.3
 
 **J2OS Platform is a modular Java toolkit:** A collection of independent Java libraries, all under the `org.j2os.platform.*` package, each with a single, self-contained responsibility (sharding, resilience, validation, a reflective RMI object cache, BPMS, report generation, security, general-purpose utilities). None of the modules depend on one another, except where explicitly noted (for example, `jvalidation` depends on `JDate` in `jutil.date`).
 
